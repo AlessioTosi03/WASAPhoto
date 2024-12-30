@@ -1,8 +1,8 @@
-openapi: 3.0.0
+openapi: 3.0.3
 servers:
   - url: "http://localhost:3000"
 info:
-  title: Fantastic Coffee (decaffeinated)
+  title: WASAPhoto
   description: Fantastic Coffee (decaffeinated), the skeleton project for Web and Software architecture course
   version: 1.0.0
 
@@ -114,15 +114,20 @@ components:
       description: The server encountered an internal error. Further info in server logs
 
   securitySchemes:
-    LegacyAuth:
-      type: apiKey
-      in: header
-      name: X-App-Token
-      description: |-
-        App session token value. This value is sent by the server in the login
-        and session refresh APIs.
+    BearerAuth: # arbitrary name for the security scheme
+      type: http
+      scheme: bearer
+      bearerFormat: JWT # optional, arbitrary value for documentation purposes
 
   parameters:
+    Authorization:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+        example: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      description: Bearer token for authentication
     XAppVersion:
       schema:
         type: string
@@ -169,16 +174,27 @@ components:
       name: pictureId
       in: path
       required: true
-      description: Picture ID
+      description: Picture identifier.
       allowEmptyValue: false
-    UserId:
+    UserID:
       schema:
         type: integer
         example: 42
+        readOnly: true
       name: userId
       in: path
       required: true
       description: Unique identifier for a user.
+      allowEmptyValue: false
+    CommentID:
+      schema:
+        type: integer
+        example: 27
+        readOnly: true
+      name: commentId
+      in: path
+      required: true
+      description: Unique identifier for a comment.
       allowEmptyValue: false
       
 paths:
@@ -238,64 +254,85 @@ paths:
               description: Access token for authenticated requests
               schema: { type: string }
         "500": { $ref: "#/components/responses/InternalServerError" }
-  /authenticated:
+  /user/{userID}/:
     parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    get:
-      tags: ["Group 2"]
-      operationId: getAuthenticatedExample
-      summary: Get an endpoint with authentication
-      description: |-
-        Get an endpoint with auth
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Logout successful
-        "500": { $ref: "#/components/responses/InternalServerError" }
-  /pictures/:
-      post:
-        tags: ["Cat pictures"]
-        operationId: uploadPhoto
-        summary: Upload a new photo
-        description: |-
-          Example of a parameter in URL
-        security:
-          - LegacyAuth: []
-        requestBody:
-          content:
-            image/png:
-              schema: { $ref: "#/components/schemas/Picture"}
-        responses:
-          "200":
-            description: Student picture found
-            content:
-              image/png:
-                schema:
-                  type: string
-                  format: binary
-                example: Picture binary file
-          "404":
-            description: Student picture not found
-          "500": { $ref: "#/components/responses/InternalServerError" }
-  /pictures/{pictureID}:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-      - $ref: "#/components/parameters/pictureID"
-    get:
-      tags: ["Cat pictures"]
-      operationId: getCatFromPicture
-      summary: Example of a parameter in URL
+      - $ref: "#/components/parameters/Authorization"
+    post:
+      tags: ["Manage profile"]
+      operationId: followUser
+      summary: Follow another user
       description: |-
         Example of a parameter in URL
       security:
-        - LegacyAuth: []
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                UserID:  # Minimal data, just the ID of the user being followed
+                  type: string
+                  description: ID of the user to follow
+                  example: "targetUserID123"
+              required:
+                - UserID
+      responses:
+        "200":
+          description: User followed successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { description: User not found }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    put:
+      tags: ["Manage profile"]
+      operationId: setMyUserName
+      summary: Modify my Username
+      description: |-
+        Example of a parameter in URL
+      security:
+        - BearerAuth: []
+      requestBody:
+        description: New username to be set
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "newUsername123"
+                  minLength: 3
+                  maxLength: 16
+              required:
+                - username
+      responses:
+        "200":
+          description: Username updated successfully
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { description: User not found }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+      
+  /user/{userID}/pictures/:
+    parameters:
+      - $ref: "#/components/parameters/Authorization"
+    post:
+      tags: ["Manage profile"]
+      operationId: uploadPhoto
+      summary: Upload a new photo
+      description: |-
+        Example of a parameter in URL
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          image/png:
+            schema: { $ref: "#/components/schemas/Picture"}
       responses:
         "200":
           description: Student picture found
@@ -308,35 +345,35 @@ paths:
         "404":
           description: Student picture not found
         "500": { $ref: "#/components/responses/InternalServerError" }
-    delete:
-      tags: ["Autofeeder"]
-      operationId: deleteCatAutofeeder
-      summary: Example of DELETE operation
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Auto feed disabled
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /session/login:
+  /user/{userID}/pictures/{pictureID}:
     parameters:
       - $ref: "#/components/parameters/XAppBuild"
       - $ref: "#/components/parameters/XAppVersion"
       - $ref: "#/components/parameters/XAppLanguage"
       - $ref: "#/components/parameters/XAppPlatform"
+      - $ref: "#/components/parameters/pictureID"
+      - $ref: "#/components/parameters/Authorization"
+    delete:
+      tags: ["Manage profile"]
+      operationId: deletePhoto
+      summary: Photo DELETE operation
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Photo deleted successfully
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /session:
     post:
-      tags: ["Session management"]
-      operationId: doLogin
-      summary: Log-in into system
+      tags: ["login"]
+      summary: Logs in the user
       description: |-
-        Perform a log-in action using username and password credentials.
-        Returns a token which can be used in authenticated requests.
-            description: |-
         If the user does not exist, it will be created,
         and an identifier is returned.
         If the user exists, the user identifier is returned.
+      operationId: doLogin
       requestBody:
         description: User details
         content:
@@ -364,15 +401,6 @@ paths:
                     # or any other type of identifier
                     type: string
                     example: "abcdef012345"
-          headers:
-            X-Access-Token:
-              description: Access token for authenticated requests
-              schema: { type: string }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "403":
-          description: Login failed
-          headers:
-            X-Message:
-              description: Error message
-              schema: { type: string }
-        "500": { $ref: "#/components/responses/InternalServerError" }
+                  message:
+                    type: string
+                    example: "Login Successful"
